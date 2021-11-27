@@ -1,0 +1,102 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: ci-helloworld-
+spec:
+  entrypoint: ci-init
+
+  templates:
+  - name: ci-init
+    steps:
+    - - name: clonar-repo
+        template: clonar-repo
+
+    - - name: build-artifact
+        template: build-artifact
+        arguments:
+          artifacts:
+            - name: source
+              from: "{{steps.clonar-repo.outputs.artifacts.source}}"
+
+    - - name: build-container-harbor-push
+        template: build-container-harbor-push
+        arguments:
+          artifacts:
+            - name: java-artifact
+              from: "{{steps.build-artifact.outputs.artifacts.java-artifact}}"
+            - name: dockerfile
+              from: "{{steps.build-artifact.outputs.artifacts.dockerfile}}"
+
+  - name: clonar-repo
+    inputs:
+      artifacts:
+      - name: source
+        path: /src
+        git:
+          repo: git@gitlab.labdso.afip.gob.ar:eogando/simple-java-maven.git
+          sshPrivateKeySecret:
+            name: github-creds
+            key: ssh-private-key
+          insecureIgnoreHostKey: true
+    container:
+      image: harbor.labdso.afip.gob.ar/library/alpine@sha256:5e604d3358ab7b6b734402ce2e19ddd822a354dc14843f34d36c603521dbb4f9
+      command: ["/bin/sh", "-c"]
+      args: ["cd /src && ls -ltr"]
+      workingDir: /src
+    outputs:
+      artifacts:
+      - name: source
+        path: /src
+
+  - name: build-artifact
+    inputs: 
+      artifacts:
+      - name: source
+        path: /src
+    outputs:
+      artifacts:
+        - name: java-artifact
+          path: /src/target/my-app-1.0-SNAPSHOT.jar
+        - name: dockerfile
+          path: /src/Dockerfile
+    container:
+      image: maven:3.8.1-adoptopenjdk-11
+      command: [mvn, clean, package, -Dhttp.proxyHost=10.30.28.25, -Dhttp.proxyPort=80, -Dhttps.proxyHost=10.30.28.25, -Dhttps.proxyPort=80, -Dmaven.wagon.http.ssl.insecure=true]
+      workingDir: /src
+      volumeMounts:
+        - name: maven-m2
+          mountPath: /root/.m2
+    volumes:
+    - name: maven-m2
+      persistentVolumeClaim:
+           claimName: maven-m2
+
+  - name: build-container-harbor-push
+    inputs:
+      artifacts:
+      - name: java-artifact
+        path: /workspace/src/target/my-app-1.0-SNAPSHOT.jar
+      - name: dockerfile
+        path: /workspace/Dockerfile
+    container:
+      image: gcr.io/kaniko-project/executor:debug
+      command: ["/kaniko/executor"]
+      args: ["--dockerfile=/workspace/Dockerfile","--context=dir:///workspace/","--destination=harbor.labdso.afip.gob.ar/hello-world/hello", "--skip-tls-verify-pull", "--skip-tls-verify", "--skip-tls-verify-registry=harbor.labdso.afip.gob.ar", "--cache=true"]
+      volumeMounts:
+      - name: workspace
+        mountPath: /workspace
+      - name: auth-config
+        mountPath: /kaniko/.docker/
+    volumes: 
+      - name: workspace
+        emptyDir: {}
+        # persistentVolumeClaim:
+        #   claimName: workspace-pvc
+      - name: auth-config
+        projected:
+          sources:
+          - secret:
+              name: regcred
+              items:
+              - key: .dockerconfigjson
+                path: config.json
