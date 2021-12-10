@@ -12,3 +12,4 @@ http://localhost:2746
 
 ### Para levantar el server sin autenticacion:
 argo server --auth-mode server
+
