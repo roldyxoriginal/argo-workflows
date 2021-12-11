@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: dataaccess
+spec:
+  containers:
+  - name: alpine
+    image: alpine:latest
+    command: ['sleep', 'infinity']
+    volumeMounts:
+    - name: ci-helloworld-dtgqs-workdir
+      mountPath: /data
+  volumes:
+  - name: ci-helloworld-dtgqs-workdir
+    persistentVolumeClaim:
+      claimName: ci-helloworld-dtgqs-workdir
+      

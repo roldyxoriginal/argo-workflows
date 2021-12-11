@@ -1,5 +1,12 @@
 # argo-workflows
 
+## Instalacion
+
+```bash
+kubectl apply -k install
+```
+
+
 #### Descargamos el cliente
 
 curl -sLO https://github.com/argoproj/argo-workflows/releases/download/v3.1.12/argo-linux-amd64.gz
@@ -12,3 +19,4 @@ http://localhost:2746
 
 ### Para levantar el server sin autenticacion:
 argo server --auth-mode server
+

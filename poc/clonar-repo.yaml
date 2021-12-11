@@ -1,0 +1,59 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: ci-helloworld-
+spec:
+  entrypoint: ci-init
+  volumes: 
+  - name: auth-config
+    secret:
+      secretName: regcred
+  volumeClaimTemplates:
+  - metadata:
+      name: workdir
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 1Gi
+          
+  templates:
+  - name: ci-init
+    steps:
+    - - name: clonar-repo
+        template: clonar-repo
+
+    - - name: build-artifact
+        template: build-artifact
+
+    - - name: build-container-harbor-push
+        template: build-container-harbor-push
+        
+  - name: clonar-repo
+    container:
+      image: alpine/git:v2.32.0
+      command: [git, clone, https://github.com/roldyxoriginal/simple-java-maven.git]
+      workingDir: /src
+      volumeMounts:
+      - name: workdir
+        mountPath: /src
+        
+  - name: build-artifact
+    container:
+      image: maven:3.8.1-adoptopenjdk-11
+      command: [mvn, clean, package, -Dmaven.wagon.http.ssl.insecure=true]
+      workingDir: /src/simple-java-maven
+      volumeMounts:
+      - name: workdir
+        mountPath: /src
+        
+  - name: build-container-harbor-push
+    container:
+      image: gcr.io/kaniko-project/executor:debug
+      command: ["/kaniko/executor"]
+      args: ["--dockerfile=/src/simple-java-maven/Dockerfile","--context=dir:///src/simple-java-maven/","--destination=registry.argentech.io/hello-world/hello", "--skip-tls-verify-pull", "--skip-tls-verify", "--skip-tls-verify-registry=registry.argentech.io", "--cache=true"]
+      volumeMounts:
+      - name: workdir
+        mountPath: /src
+      - name: auth-config
+        mountPath: /kaniko/.docker
