@@ -32,7 +32,7 @@ spec:
   - name: clonar-repo
     container:
       image: alpine/git:v2.32.0
-      command: [git, clone, https://github.com/roldyxoriginal/simple-java-maven.git]
+      command: [git, clone, --branch, v1.0.1, https://github.com/roldyxoriginal/simple-java-maven.git]
       workingDir: /src
       volumeMounts:
       - name: workdir
